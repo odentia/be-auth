@@ -12,6 +12,8 @@ from src.core.logging import get_logger
 
 from src.application.uow import UnitOfWork  # interface / Protocol
 from src.infrastructure.uow_sqlalchemy import SQLAlchemyUoW  # impl
+from src.domain.services import PasswordService, JWTService, AuthService
+from src.infrastructure.persistence.repositories import SQLUserRepository
 
 log = get_logger(__name__)
 
@@ -70,10 +72,47 @@ async def get_current_token(
     return "" if creds is None else creds.credentials
 
 
+def get_password_service(settings: Settings = Depends(get_settings)) -> PasswordService:
+    """Получить сервис для работы с паролями"""
+    return PasswordService()
+
+
+def get_jwt_service(settings: Settings = Depends(get_settings)) -> JWTService:
+    """Получить сервис для работы с JWT"""
+    return JWTService(settings)
+
+
+def get_auth_service(
+    password_service: PasswordService = Depends(get_password_service),
+    jwt_service: JWTService = Depends(get_jwt_service)
+) -> AuthService:
+    """Получить сервис аутентификации"""
+    return AuthService(password_service, jwt_service)
+
+
+def get_auth_services(
+    password_service: PasswordService = Depends(get_password_service),
+    jwt_service: JWTService = Depends(get_jwt_service),
+    auth_service: AuthService = Depends(get_auth_service)
+) -> dict:
+    """Получить все сервисы аутентификации"""
+    return {
+        "password_service": password_service,
+        "jwt_service": jwt_service,
+        "auth_service": auth_service
+    }
+
+
+def get_user_repo(session: SessionDep) -> SQLUserRepository:
+    """Получить репозиторий пользователей"""
+    return SQLUserRepository(session)
+
+
 async def require_authenticated_user(
     token: Annotated[str, Depends(get_current_token)],
+    settings: SettingsDep,
 ) -> dict:
-
+    """Проверка аутентификации пользователя"""
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -81,8 +120,22 @@ async def require_authenticated_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = {"sub": "00000000-0000-0000-0000-000000000000", "email": "me@example.com", "roles": ["user"]}
-    return user
+    # Проверяем JWT токен
+    jwt_service = JWTService(settings)
+    payload = jwt_service.verify_access_token(token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return {
+        "sub": payload.get("sub"),
+        "email": payload.get("email"),
+        "role": payload.get("role"),
+        "roles": [payload.get("role", "user")]
+    }
 
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]

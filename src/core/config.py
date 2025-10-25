@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     reload: bool = Field(default=False, description="Uvicorn reload (dev only)")
 
     # --- CORS ---
-    cors_allow_origins: list[str] = Field(default_factory=lambda: ["*"])
+    cors_allow_origins: str = Field(default="*")
 
     # --- Logging ---
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
@@ -42,6 +42,25 @@ class Settings(BaseSettings):
         description="SQLAlchemy async URL, e.g. postgresql+asyncpg://user:pass@host:5432/db",
     )
     sql_echo: bool = Field(default=False)
+
+    # --- Redis ---
+    redis_url: str = Field(
+        default="redis://localhost:6379/0",
+        description="Redis URL for session storage and caching",
+    )
+
+    # --- JWT ---
+    jwt_secret_key: str = Field(
+        default="your-secret-key-change-in-production",
+        description="Secret key for JWT token signing",
+    )
+    jwt_algorithm: str = Field(default="HS256", description="JWT signing algorithm")
+    jwt_access_token_expire_minutes: int = Field(
+        default=30, description="Access token expiration time in minutes"
+    )
+    jwt_refresh_token_expire_days: int = Field(
+        default=7, description="Refresh token expiration time in days"
+    )
 
     # --- Observability / Meta ---
     public_base_url: AnyHttpUrl | None = None
@@ -81,6 +100,8 @@ def load_settings() -> Settings:
 
 def _parse_cors_origins(raw: str | None) -> list[str]:
     if not raw:
+        return ["*"]
+    if raw == "*":
         return ["*"]
     parts = [p.strip() for p in raw.split(",") if p.strip()]
     return parts or ["*"]

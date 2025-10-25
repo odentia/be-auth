@@ -4,6 +4,7 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from src.api.lifespan import build_lifespan
 from src.api.v1.routers import api_v1
+from src.api.middleware import AuthMiddleware
 from src.core.config import Settings, load_settings
 from src.core.logging import init_logging
 
@@ -31,6 +32,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    
+    # Добавляем middleware аутентификации
+    app.add_middleware(AuthMiddleware, settings=settings)
 
     # Routers
     app.include_router(api_v1, prefix="/api")

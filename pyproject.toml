@@ -13,6 +13,12 @@ dependencies = [
   "asyncpg>=0.30",
   "alembic>=1.13",
   "rich>=13.7",
+  "python-jose[cryptography]>=3.3.0",
+  "passlib[bcrypt]>=1.7.4",
+  "python-multipart>=0.0.6",
+  "redis>=5.0.0",
+  "email-validator>=2.3.0",
+  "aiosqlite>=0.21.0",
 ]
 
 [tool.alembic]
