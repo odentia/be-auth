@@ -62,6 +62,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         public_paths = [
             "/api/v1/healthz",
             "/api/v1/auth/login",
+            "/api/v1/auth/register",
             "/api/v1/auth/refresh",
             "/docs",
             "/openapi.json",

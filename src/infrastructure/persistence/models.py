@@ -53,7 +53,6 @@ UUIDStr = Annotated[str, mapped_column(UUID(as_uuid=False), primary_key=True)]
 
 
 class Users(Base):
-    """Таблица пользователей"""
     id: Mapped[UUIDStr]
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255))

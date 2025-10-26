@@ -5,6 +5,13 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr, Field
 
 
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+
+
 class LoginRequest(BaseModel):
     """Запрос на вход в систему"""
     email: EmailStr
@@ -45,3 +52,8 @@ class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
     code: Optional[str] = None
+
+
+class LogautResponse(BaseModel):
+    success: bool = True
+    message: str = "Successful logout"
