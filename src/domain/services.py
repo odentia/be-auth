@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, TYPE_CHECKING
@@ -25,7 +26,11 @@ class PasswordService:
         password_bytes = password.encode('utf-8')
         if len(password_bytes) > 72:
             # Если пароль длиннее 72 байт, предварительно хешируем его SHA256
-            return hashlib.sha256(password_bytes).hexdigest()
+            # Используем base64 для компактного представления (44 символа = 44 байта)
+            hash_bytes = hashlib.sha256(password_bytes).digest()
+            prepared = base64.b64encode(hash_bytes).decode('ascii')
+            # Гарантируем, что результат не превышает 72 байта
+            return prepared[:72] if len(prepared.encode('utf-8')) > 72 else prepared
         return password
     
     def hash_password(self, password: str) -> str:
@@ -114,7 +119,11 @@ class AuthService:
         password_bytes = password.encode('utf-8')
         if len(password_bytes) > 72:
             # Если пароль длиннее 72 байт, предварительно хешируем его SHA256
-            return hashlib.sha256(password_bytes).hexdigest()
+            # Используем base64 для компактного представления (44 символа = 44 байта)
+            hash_bytes = hashlib.sha256(password_bytes).digest()
+            prepared = base64.b64encode(hash_bytes).decode('ascii')
+            # Гарантируем, что результат не превышает 72 байта
+            return prepared[:72] if len(prepared.encode('utf-8')) > 72 else prepared
         return password
     
     def authenticate_user(self, user: User, password: str) -> bool:
