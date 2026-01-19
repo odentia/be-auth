@@ -5,8 +5,8 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Optional
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from src.core.config import Settings
 from src.domain.entities import User, TokenPair, AuthResult
@@ -15,39 +15,38 @@ from src.domain.entities import User, TokenPair, AuthResult
 class PasswordService:
     """Сервис для работы с паролями"""
     
-    def __init__(self):
-        # Инициализируем CryptContext с явным указанием обрезки паролей
-        try:
-            self.pwd_context = CryptContext(
-                schemes=["bcrypt"],
-                deprecated="auto",
-                bcrypt__ident="2b"  # Используем идентификатор 2b для bcrypt
-            )
-        except Exception:
-            # Если инициализация не удалась, пробуем без дополнительных параметров
-            self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    
-    def _prepare_password(self, password: str) -> str:
+    def _prepare_password(self, password: str) -> bytes:
         """Подготовка пароля для bcrypt (ограничение 72 байта)"""
         password_bytes = password.encode('utf-8')
         # Если пароль длиннее 72 байт, предварительно хешируем его SHA256
         if len(password_bytes) > 72:
             # Используем base64 для компактного представления (44 символа = 44 байта)
             hash_bytes = hashlib.sha256(password_bytes).digest()
-            prepared = base64.b64encode(hash_bytes).decode('ascii')
-            # Base64 строка из 32 байт всегда будет 44 символа (44 байта), что < 72
+            prepared = base64.b64encode(hash_bytes)
+            # Base64 строка из 32 байт всегда будет 44 байта, что < 72
             return prepared
-        return password
+        return password_bytes
     
     def hash_password(self, password: str) -> str:
         """Хеширование пароля"""
         prepared_password = self._prepare_password(password)
-        return self.pwd_context.hash(prepared_password)
+        # Обрезаем до 72 байт на всякий случай
+        if len(prepared_password) > 72:
+            prepared_password = prepared_password[:72]
+        # Генерируем соль и хешируем пароль
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(prepared_password, salt)
+        return hashed.decode('utf-8')
     
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Проверка пароля"""
         prepared_password = self._prepare_password(plain_password)
-        return self.pwd_context.verify(prepared_password, hashed_password)
+        # Обрезаем до 72 байт на всякий случай
+        if len(prepared_password) > 72:
+            prepared_password = prepared_password[:72]
+        # Проверяем пароль
+        hashed_bytes = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(prepared_password, hashed_bytes)
 
 
 class JWTService:
