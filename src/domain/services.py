@@ -30,17 +30,13 @@ class PasswordService:
     def _prepare_password(self, password: str) -> str:
         """Подготовка пароля для bcrypt (ограничение 72 байта)"""
         password_bytes = password.encode('utf-8')
-        # Всегда обрезаем до 72 байт, если пароль длиннее
+        # Если пароль длиннее 72 байт, предварительно хешируем его SHA256
         if len(password_bytes) > 72:
-            # Если пароль длиннее 72 байт, предварительно хешируем его SHA256
             # Используем base64 для компактного представления (44 символа = 44 байта)
             hash_bytes = hashlib.sha256(password_bytes).digest()
             prepared = base64.b64encode(hash_bytes).decode('ascii')
             # Base64 строка из 32 байт всегда будет 44 символа (44 байта), что < 72
             return prepared
-        # Для коротких паролей тоже проверяем длину в байтах и обрезаем при необходимости
-        if len(password_bytes) > 72:
-            return password_bytes[:72].decode('utf-8', errors='ignore')
         return password
     
     def hash_password(self, password: str) -> str:
