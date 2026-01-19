@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from src.core.config import Settings
 from src.domain.entities import User, TokenPair, AuthResult
+
+if TYPE_CHECKING:
+    import redis
 
 
 class PasswordService:
@@ -28,7 +31,7 @@ class PasswordService:
 class JWTService:
     """Сервис для работы с JWT токенами"""
     
-    def __init__(self, settings: Settings, redis_client: Optional[redis.Redis] = None):
+    def __init__(self, settings: Settings, redis_client: Optional["redis.Redis"] = None):
         self.secret_key = settings.jwt_secret_key
         self.algorithm = settings.jwt_algorithm
         self.access_token_expire_minutes = settings.jwt_access_token_expire_minutes

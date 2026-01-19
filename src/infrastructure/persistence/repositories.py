@@ -6,7 +6,6 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.entities import User
-from src.domain.repositories import UserRepository
 from src.infrastructure.persistence.models import Users
 from src.infrastructure.persistence.mappers import user_to_domain, user_to_model
 
