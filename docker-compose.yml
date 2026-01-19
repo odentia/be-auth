@@ -31,23 +31,8 @@ services:
       timeout: 5s
       retries: 5
 
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: be-auth-rabbitmq
-    restart: unless-stopped
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
-    ports:
-      - "15672:15672"  # Management UI
-      - "5672:5672"     # AMQP port
-    networks:
-      - be-auth-network
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # RabbitMQ контейнер не создается - используется существующий контейнер другого микросервиса
+  # Имя контейнера указывается через секрет RABBITMQ_CONTAINER_NAME (по умолчанию 'rabbitmq')
 
   be-auth:
     # На сервере замените YOUR_GITHUB_USERNAME на ваш GitHub username
@@ -60,15 +45,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     ports:
       - "8000:8000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - ALEMBIC_DATABASE_URL=${ALEMBIC_DATABASE_URL:-}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@${RABBITMQ_CONTAINER_NAME:-rabbitmq}:5672/
       - HTTP_PORT=${HTTP_PORT:-8000}
       - ENV=${ENV:-prod}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}

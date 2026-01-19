@@ -28,6 +28,33 @@ jobs:
             cd ~/be-auth
             
             POSTGRES_PORT="${{ secrets.POSTGRES_PORT || '5434' }}"
+            RABBITMQ_CONTAINER_NAME="${{ secrets.RABBITMQ_CONTAINER_NAME || 'rabbitmq' }}"
+            RABBITMQ_NETWORK="${{ secrets.RABBITMQ_NETWORK }}"
+            
+            # Используем существующий RabbitMQ контейнер (не создаем новый)
+            RABBITMQ_SERVICE=""
+            RABBITMQ_DEPENDENCY=""
+            
+            # Определяем сеть существующего контейнера, если не указана
+            if [ -z "$RABBITMQ_NETWORK" ]; then
+              RABBITMQ_NETWORK=$(docker inspect "$RABBITMQ_CONTAINER_NAME" --format='{{range $key, $value := .NetworkSettings.Networks}}{{$key}}{{end}}' 2>/dev/null | head -n1 || echo "bridge")
+            fi
+            
+            # Используем имя существующего контейнера в RABBITMQ_URL
+            RABBITMQ_HOST="$RABBITMQ_CONTAINER_NAME"
+            
+            # Если сеть существует, подключаем be-auth к ней
+            if docker network inspect "$RABBITMQ_NETWORK" >/dev/null 2>&1; then
+              RABBITMQ_NETWORK_CONFIG="    networks:
+      - be-auth-network
+      - $RABBITMQ_NETWORK"
+              RABBITMQ_NETWORK_EXTERNAL="      $RABBITMQ_NETWORK:
+        external: true"
+            else
+              RABBITMQ_NETWORK_CONFIG="    networks:
+      - be-auth-network"
+              RABBITMQ_NETWORK_EXTERNAL=""
+            fi
             
             cat > docker-compose.yml << EOF
             services:
@@ -61,23 +88,7 @@ jobs:
                   interval: 10s
                   timeout: 5s
                   retries: 5
-              rabbitmq:
-                image: rabbitmq:3-management-alpine
-                container_name: be-auth-rabbitmq
-                restart: unless-stopped
-                environment:
-                  RABBITMQ_DEFAULT_USER: ${{ secrets.RABBITMQ_USER || 'guest' }}
-                  RABBITMQ_DEFAULT_PASS: ${{ secrets.RABBITMQ_PASSWORD || 'guest' }}
-                ports:
-                  - "15672:15672"
-                  - "5672:5672"
-                networks:
-                  - be-auth-network
-                healthcheck:
-                  test: ["CMD", "rabbitmq-diagnostics", "ping"]
-                  interval: 10s
-                  timeout: 5s
-                  retries: 5
+            ${RABBITMQ_SERVICE}
               be-auth:
                 image: ghcr.io/${{ github.repository_owner }}/be-auth:latest
                 container_name: be-auth
@@ -87,8 +98,7 @@ jobs:
                     condition: service_healthy
                   redis:
                     condition: service_healthy
-                  rabbitmq:
-                    condition: service_healthy
+            ${RABBITMQ_DEPENDENCY}
                 ports:
                   - "8000:8000"
                 environment:
@@ -97,16 +107,16 @@ jobs:
                   - REDIS_URL=${{ secrets.REDIS_URL || 'redis://redis:6379/0' }}
                   - RABBITMQ_USER=${{ secrets.RABBITMQ_USER || 'guest' }}
                   - RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD || 'guest' }}
-                  - RABBITMQ_URL=amqp://${{ secrets.RABBITMQ_USER || 'guest' }}:${{ secrets.RABBITMQ_PASSWORD || 'guest' }}@rabbitmq:5672/
+                  - RABBITMQ_URL=amqp://${{ secrets.RABBITMQ_USER || 'guest' }}:${{ secrets.RABBITMQ_PASSWORD || 'guest' }}@${RABBITMQ_HOST}:5672/
                   - HTTP_PORT=8000
                   - ENV=prod
                   - LOG_LEVEL=${{ secrets.LOG_LEVEL || 'INFO' }}
                   - CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS || '*' }}
-                networks:
-                  - be-auth-network
+${RABBITMQ_NETWORK_CONFIG}
             networks:
               be-auth-network:
                 driver: bridge
+            ${RABBITMQ_NETWORK_EXTERNAL}
             volumes:
               postgres_data:
             EOF
@@ -120,7 +130,7 @@ jobs:
             REDIS_URL=${{ secrets.REDIS_URL || 'redis://redis:6379/0' }}
             RABBITMQ_USER=${{ secrets.RABBITMQ_USER || 'guest' }}
             RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD || 'guest' }}
-            RABBITMQ_URL=amqp://${{ secrets.RABBITMQ_USER || 'guest' }}:${{ secrets.RABBITMQ_PASSWORD || 'guest' }}@rabbitmq:5672/
+            RABBITMQ_URL=amqp://${{ secrets.RABBITMQ_USER || 'guest' }}:${{ secrets.RABBITMQ_PASSWORD || 'guest' }}@${RABBITMQ_HOST}:5672/
             HTTP_PORT=8000
             ENV=prod
             LOG_LEVEL=${{ secrets.LOG_LEVEL || 'INFO' }}
@@ -134,7 +144,17 @@ jobs:
                 echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
               fi
             }
+            # Подключаем be-auth к сети существующего RabbitMQ
+            echo "Используется существующий RabbitMQ контейнер: $RABBITMQ_CONTAINER_NAME"
+            echo "Сеть: $RABBITMQ_NETWORK"
+            
             docker compose pull
             docker compose run --rm be-auth uv run alembic upgrade head || echo "Migration failed or not needed"
             docker compose up -d
+            
+            # Подключаем be-auth к сети существующего RabbitMQ после запуска
+            if docker network inspect "$RABBITMQ_NETWORK" >/dev/null 2>&1; then
+              docker network connect "$RABBITMQ_NETWORK" be-auth 2>/dev/null || echo "Контейнер be-auth уже подключен к сети $RABBITMQ_NETWORK"
+            fi
+            
             docker image prune -f
