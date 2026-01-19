@@ -28,16 +28,14 @@ jobs:
             cd ~/be-auth
             
             POSTGRES_PORT="${{ secrets.POSTGRES_PORT || '5434' }}"
+            HTTP_PORT="${{ secrets.HTTP_PORT || '8000' }}"
             RABBITMQ_CONTAINER_NAME="${{ secrets.RABBITMQ_CONTAINER_NAME || 'rabbitmq' }}"
             RABBITMQ_NETWORK="${{ secrets.RABBITMQ_NETWORK }}"
             
-            # Используем существующий RabbitMQ контейнер (не создаем новый)
-            RABBITMQ_SERVICE=""
-            RABBITMQ_DEPENDENCY=""
-            
             # Определяем сеть существующего контейнера, если не указана
             if [ -z "$RABBITMQ_NETWORK" ]; then
-              RABBITMQ_NETWORK=$(docker inspect "$RABBITMQ_CONTAINER_NAME" --format='{{range $key, $value := .NetworkSettings.Networks}}{{$key}}{{end}}' 2>/dev/null | head -n1 || echo "bridge")
+              FORMAT='{{range $key, $value := .NetworkSettings.Networks}}{{$key}}{{end}}'
+              RABBITMQ_NETWORK=$(docker inspect "$RABBITMQ_CONTAINER_NAME" --format="$FORMAT" 2>/dev/null | head -n1 || echo "bridge")
             fi
             
             # Используем имя существующего контейнера в RABBITMQ_URL
@@ -82,7 +80,6 @@ jobs:
                   interval: 10s
                   timeout: 5s
                   retries: 5
-            ${RABBITMQ_SERVICE}
               be-auth:
                 image: ghcr.io/${{ github.repository_owner }}/be-auth:latest
                 container_name: be-auth
@@ -92,9 +89,8 @@ jobs:
                     condition: service_healthy
                   redis:
                     condition: service_healthy
-            ${RABBITMQ_DEPENDENCY}
                 ports:
-                  - "8000:8000"
+                  - "${HTTP_PORT}:8000"
                 environment:
                   - DATABASE_URL=${{ secrets.DATABASE_URL }}
                   - ALEMBIC_DATABASE_URL=${{ secrets.ALEMBIC_DATABASE_URL || '' }}
@@ -142,9 +138,12 @@ jobs:
             echo "Используется существующий RabbitMQ контейнер: $RABBITMQ_CONTAINER_NAME"
             echo "Сеть: $RABBITMQ_NETWORK"
             
+            # Останавливаем старые контейнеры если они запущены
+            docker compose down --remove-orphans 2>/dev/null || true
+            
             docker compose pull
             docker compose run --rm be-auth uv run alembic upgrade head || echo "Migration failed or not needed"
-            docker compose up -d
+            docker compose up -d --remove-orphans
             
             # Подключаем be-auth к сети существующего RabbitMQ после запуска
             if [ "$USE_EXTERNAL_RABBITMQ_NETWORK" = "1" ]; then
