@@ -11,6 +11,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Deploy via SSH
@@ -124,9 +127,13 @@ jobs:
             CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS || '*' }}
             EOF
             
-            if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
-              echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            fi
+            # Логинимся в GHCR для доступа к образам
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin || {
+              echo "Failed to login to GHCR, trying with GHCR_TOKEN if available"
+              if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+                echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+              fi
+            }
             docker compose pull
             docker compose run --rm be-auth uv run alembic upgrade head || echo "Migration failed or not needed"
             docker compose up -d
