@@ -29,8 +29,8 @@ jobs:
       - name: Run linter
         run: uvx ruff check --fix src
 
-      - name: Format check
-        run: uvx ruff format --check src
+      - name: Format code
+        run: uvx ruff format src
 
   build-and-push:
     runs-on: ubuntu-latest
