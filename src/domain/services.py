@@ -3,16 +3,13 @@ from __future__ import annotations
 import base64
 import hashlib
 from datetime import datetime, timedelta
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from src.core.config import Settings
 from src.domain.entities import User, TokenPair, AuthResult
-
-if TYPE_CHECKING:
-    import redis
 
 
 class PasswordService:
@@ -47,7 +44,7 @@ class PasswordService:
 class JWTService:
     """Сервис для работы с JWT токенами"""
     
-    def __init__(self, settings: Settings, redis_client: Optional["redis.Redis"] = None):
+    def __init__(self, settings: Settings):
         self.secret_key = settings.jwt_secret_key
         self.algorithm = settings.jwt_algorithm
         self.access_token_expire_minutes = settings.jwt_access_token_expire_minutes
@@ -112,19 +109,6 @@ class AuthService:
     def __init__(self, password_service: PasswordService, jwt_service: JWTService):
         self.password_service = password_service
         self.jwt_service = jwt_service
-        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    
-    def _prepare_password(self, password: str) -> str:
-        """Подготовка пароля для bcrypt (ограничение 72 байта)"""
-        password_bytes = password.encode('utf-8')
-        if len(password_bytes) > 72:
-            # Если пароль длиннее 72 байт, предварительно хешируем его SHA256
-            # Используем base64 для компактного представления (44 символа = 44 байта)
-            hash_bytes = hashlib.sha256(password_bytes).digest()
-            prepared = base64.b64encode(hash_bytes).decode('ascii')
-            # Гарантируем, что результат не превышает 72 байта
-            return prepared[:72] if len(prepared.encode('utf-8')) > 72 else prepared
-        return password
     
     def authenticate_user(self, user: User, password: str) -> bool:
         """Аутентификация пользователя по паролю"""
@@ -139,14 +123,12 @@ class AuthService:
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Проверка пароля"""
-        prepared_password = self._prepare_password(plain_password)
-        return self.pwd_context.verify(prepared_password, hashed_password)
+        return self.password_service.verify_password(plain_password, hashed_password)
 
     def get_password_hash(self, password: str) -> str:
         """Хеширование пароля"""
-        prepared_password = self._prepare_password(password)
-        return self.pwd_context.hash(prepared_password)
+        return self.password_service.hash_password(password)
 
     def hash_password(self, password: str) -> str:
-        """Хеширование пароля (алиас для get_password_hash)"""
+        """Хеширование пароля (алиас)"""
         return self.get_password_hash(password)
