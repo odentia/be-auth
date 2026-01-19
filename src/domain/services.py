@@ -127,7 +127,8 @@ class AuthService:
 
     def get_password_hash(self, password: str) -> str:
         """Хеширование пароля"""
-        return self.password_service.hash_password(password)
+        prepared_password = self._prepare_password(password)
+        return self.pwd_context.hash(prepared_password)
 
     def hash_password(self, password: str) -> str:
         """Хеширование пароля (алиас)"""

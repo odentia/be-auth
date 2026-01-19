@@ -29,6 +29,7 @@ jobs:
             
             POSTGRES_PORT="${{ secrets.POSTGRES_PORT || '5435' }}"
             HTTP_PORT="${{ secrets.HTTP_PORT || '8011' }}"
+            REDIS_PORT="${{ secrets.REDIS_PORT || '6379' }}"
             RABBITMQ_CONTAINER_NAME="${{ secrets.RABBITMQ_CONTAINER_NAME || 'rabbitmq' }}"
             RABBITMQ_NETWORK="${{ secrets.RABBITMQ_NETWORK }}"
             
@@ -56,6 +57,7 @@ jobs:
             echo "Используемые порты:"
             echo "  PostgreSQL: $POSTGRES_PORT"
             echo "  HTTP: $HTTP_PORT"
+            echo "  Redis: $REDIS_PORT"
             echo "База данных: $POSTGRES_DB"
             echo "Пользователь: $POSTGRES_USER"
             
@@ -100,6 +102,8 @@ jobs:
                 image: redis:7-alpine
                 container_name: be-auth-redis
                 restart: unless-stopped
+                ports:
+                  - "${REDIS_PORT}:6379"
                 networks:
                   - be-auth-network
                 healthcheck:
