@@ -32,9 +32,32 @@ jobs:
             RABBITMQ_CONTAINER_NAME="${{ secrets.RABBITMQ_CONTAINER_NAME || 'rabbitmq' }}"
             RABBITMQ_NETWORK="${{ secrets.RABBITMQ_NETWORK }}"
             
+            # Формируем DATABASE_URL из компонентов, если не задан в секретах
+            POSTGRES_DB="${{ secrets.POSTGRES_DB || 'auth' }}"
+            POSTGRES_USER="${{ secrets.POSTGRES_USER || 'auth_user' }}"
+            POSTGRES_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
+            
+            # Проверяем и формируем DATABASE_URL
+            SECRET_DATABASE_URL="${{ secrets.DATABASE_URL }}"
+            if [ -z "$SECRET_DATABASE_URL" ]; then
+              DATABASE_URL="postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+            else
+              DATABASE_URL="$SECRET_DATABASE_URL"
+            fi
+            
+            # Проверяем и формируем ALEMBIC_DATABASE_URL
+            SECRET_ALEMBIC_DATABASE_URL="${{ secrets.ALEMBIC_DATABASE_URL }}"
+            if [ -z "$SECRET_ALEMBIC_DATABASE_URL" ]; then
+              ALEMBIC_DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
+            else
+              ALEMBIC_DATABASE_URL="$SECRET_ALEMBIC_DATABASE_URL"
+            fi
+            
             echo "Используемые порты:"
             echo "  PostgreSQL: $POSTGRES_PORT"
             echo "  HTTP: $HTTP_PORT"
+            echo "База данных: $POSTGRES_DB"
+            echo "Пользователь: $POSTGRES_USER"
             
             # Определяем сеть существующего контейнера, если не указана
             if [ -z "$RABBITMQ_NETWORK" ]; then
@@ -59,9 +82,9 @@ jobs:
                 container_name: be-auth-postgres
                 restart: unless-stopped
                 environment:
-                  POSTGRES_DB: ${{ secrets.POSTGRES_DB || 'auth' }}
-                  POSTGRES_USER: ${{ secrets.POSTGRES_USER || 'auth_user' }}
-                  POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+                  POSTGRES_DB: ${POSTGRES_DB}
+                  POSTGRES_USER: ${POSTGRES_USER}
+                  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
                 volumes:
                   - postgres_data:/var/lib/postgresql/data
                 ports:
@@ -69,7 +92,7 @@ jobs:
                 networks:
                   - be-auth-network
                 healthcheck:
-                  test: ["CMD-SHELL", "pg_isready -U ${{ secrets.POSTGRES_USER || 'auth_user' }}"]
+                  test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
                   interval: 10s
                   timeout: 5s
                   retries: 5
@@ -96,8 +119,8 @@ jobs:
                 ports:
                   - "${HTTP_PORT}:8000"
                 environment:
-                  - DATABASE_URL=${{ secrets.DATABASE_URL }}
-                  - ALEMBIC_DATABASE_URL=${{ secrets.ALEMBIC_DATABASE_URL || '' }}
+                  - DATABASE_URL=${DATABASE_URL}
+                  - ALEMBIC_DATABASE_URL=${ALEMBIC_DATABASE_URL}
                   - REDIS_URL=${{ secrets.REDIS_URL || 'redis://redis:6379/0' }}
                   - RABBITMQ_USER=${{ secrets.RABBITMQ_USER || 'guest' }}
                   - RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD || 'guest' }}
@@ -116,11 +139,11 @@ jobs:
             EOF
             
             cat > .env << EOF
-            POSTGRES_DB=${{ secrets.POSTGRES_DB || 'auth' }}
-            POSTGRES_USER=${{ secrets.POSTGRES_USER || 'auth_user' }}
-            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
-            ALEMBIC_DATABASE_URL=${{ secrets.ALEMBIC_DATABASE_URL || '' }}
+            POSTGRES_DB=${POSTGRES_DB}
+            POSTGRES_USER=${POSTGRES_USER}
+            POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+            DATABASE_URL=${DATABASE_URL}
+            ALEMBIC_DATABASE_URL=${ALEMBIC_DATABASE_URL}
             REDIS_URL=${{ secrets.REDIS_URL || 'redis://redis:6379/0' }}
             RABBITMQ_USER=${{ secrets.RABBITMQ_USER || 'guest' }}
             RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD || 'guest' }}
