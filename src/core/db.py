@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import Optional, AsyncIterator
 
-from sqlalchemy import event, select, text
+from sqlalchemy import event, text
 from sqlalchemy.engine import URL as SAURL
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
