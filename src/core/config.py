@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     reload: bool = Field(default=False, description="Uvicorn reload (dev only)")
 
     # --- CORS ---
-    cors_allow_origins: str = Field(default="*")
+    cors_allow_origins: str = Field(default="http://localhost:3000")
 
     # --- Logging ---
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
