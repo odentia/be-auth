@@ -28,7 +28,7 @@ class PasswordService:
 class JWTService:
     """Сервис для работы с JWT токенами"""
     
-    def __init__(self, settings: Settings, redis_client: Optional[redis.Redis] = None):
+    def __init__(self, settings: Settings):
         self.secret_key = settings.jwt_secret_key
         self.algorithm = settings.jwt_algorithm
         self.access_token_expire_minutes = settings.jwt_access_token_expire_minutes
@@ -93,7 +93,6 @@ class AuthService:
     def __init__(self, password_service: PasswordService, jwt_service: JWTService):
         self.password_service = password_service
         self.jwt_service = jwt_service
-        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     
     def authenticate_user(self, user: User, password: str) -> bool:
         """Аутентификация пользователя по паролю"""
@@ -107,10 +106,13 @@ class AuthService:
         return AuthResult(user=user, tokens=tokens)
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        return self.pwd_context.verify(plain_password, hashed_password)
+        """Проверка пароля"""
+        return self.password_service.verify_password(plain_password, hashed_password)
 
     def get_password_hash(self, password: str) -> str:
-        return self.pwd_context.hash(password)
+        """Хеширование пароля"""
+        return self.password_service.hash_password(password)
 
     def hash_password(self, password: str) -> str:
+        """Хеширование пароля (алиас)"""
         return self.get_password_hash(password)
