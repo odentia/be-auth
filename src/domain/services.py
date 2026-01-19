@@ -26,8 +26,12 @@ class PasswordService:
             # Используем base64 для компактного представления (44 символа = 44 байта)
             hash_bytes = hashlib.sha256(password_bytes).digest()
             prepared = base64.b64encode(hash_bytes).decode('ascii')
-            # Гарантируем, что результат не превышает 72 байта
-            return prepared[:72] if len(prepared.encode('utf-8')) > 72 else prepared
+            # Base64 строка из 32 байт всегда будет 44 символа (44 байта), что < 72
+            # Но на всякий случай проверяем и обрезаем
+            prepared_bytes = prepared.encode('ascii')
+            if len(prepared_bytes) > 72:
+                return prepared_bytes[:72].decode('ascii', errors='ignore')
+            return prepared
         return password
     
     def hash_password(self, password: str) -> str:
@@ -119,8 +123,12 @@ class AuthService:
             # Используем base64 для компактного представления (44 символа = 44 байта)
             hash_bytes = hashlib.sha256(password_bytes).digest()
             prepared = base64.b64encode(hash_bytes).decode('ascii')
-            # Гарантируем, что результат не превышает 72 байта
-            return prepared[:72] if len(prepared.encode('utf-8')) > 72 else prepared
+            # Base64 строка из 32 байт всегда будет 44 символа (44 байта), что < 72
+            # Но на всякий случай проверяем и обрезаем
+            prepared_bytes = prepared.encode('ascii')
+            if len(prepared_bytes) > 72:
+                return prepared_bytes[:72].decode('ascii', errors='ignore')
+            return prepared
         return password
     
     def authenticate_user(self, user: User, password: str) -> bool:
