@@ -27,10 +27,14 @@ jobs:
             mkdir -p ~/be-auth
             cd ~/be-auth
             
-            POSTGRES_PORT="${{ secrets.POSTGRES_PORT || '5434' }}"
-            HTTP_PORT="${{ secrets.HTTP_PORT || '8000' }}"
+            POSTGRES_PORT="${{ secrets.POSTGRES_PORT || '5435' }}"
+            HTTP_PORT="${{ secrets.HTTP_PORT || '8011' }}"
             RABBITMQ_CONTAINER_NAME="${{ secrets.RABBITMQ_CONTAINER_NAME || 'rabbitmq' }}"
             RABBITMQ_NETWORK="${{ secrets.RABBITMQ_NETWORK }}"
+            
+            echo "Используемые порты:"
+            echo "  PostgreSQL: $POSTGRES_PORT"
+            echo "  HTTP: $HTTP_PORT"
             
             # Определяем сеть существующего контейнера, если не указана
             if [ -z "$RABBITMQ_NETWORK" ]; then
@@ -138,7 +142,11 @@ jobs:
             echo "Используется существующий RabbitMQ контейнер: $RABBITMQ_CONTAINER_NAME"
             echo "Сеть: $RABBITMQ_NETWORK"
             
-            # Останавливаем старые контейнеры если они запущены
+            # Останавливаем и удаляем старые контейнеры по именам
+            docker stop be-auth be-auth-postgres be-auth-redis be-auth-rabbitmq 2>/dev/null || true
+            docker rm be-auth be-auth-postgres be-auth-redis be-auth-rabbitmq 2>/dev/null || true
+            
+            # Останавливаем compose если он был запущен
             docker compose down --remove-orphans 2>/dev/null || true
             
             docker compose pull
