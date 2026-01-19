@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, TYPE_CHECKING
 
@@ -19,13 +20,23 @@ class PasswordService:
     def __init__(self):
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     
+    def _prepare_password(self, password: str) -> str:
+        """Подготовка пароля для bcrypt (ограничение 72 байта)"""
+        password_bytes = password.encode('utf-8')
+        if len(password_bytes) > 72:
+            # Если пароль длиннее 72 байт, предварительно хешируем его SHA256
+            return hashlib.sha256(password_bytes).hexdigest()
+        return password
+    
     def hash_password(self, password: str) -> str:
         """Хеширование пароля"""
-        return self.pwd_context.hash(password)
+        prepared_password = self._prepare_password(password)
+        return self.pwd_context.hash(prepared_password)
     
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Проверка пароля"""
-        return self.pwd_context.verify(plain_password, hashed_password)
+        prepared_password = self._prepare_password(plain_password)
+        return self.pwd_context.verify(prepared_password, hashed_password)
 
 
 class JWTService:
@@ -98,6 +109,14 @@ class AuthService:
         self.jwt_service = jwt_service
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     
+    def _prepare_password(self, password: str) -> str:
+        """Подготовка пароля для bcrypt (ограничение 72 байта)"""
+        password_bytes = password.encode('utf-8')
+        if len(password_bytes) > 72:
+            # Если пароль длиннее 72 байт, предварительно хешируем его SHA256
+            return hashlib.sha256(password_bytes).hexdigest()
+        return password
+    
     def authenticate_user(self, user: User, password: str) -> bool:
         """Аутентификация пользователя по паролю"""
         if not user or not user.is_active:
@@ -110,10 +129,15 @@ class AuthService:
         return AuthResult(user=user, tokens=tokens)
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        return self.pwd_context.verify(plain_password, hashed_password)
+        """Проверка пароля"""
+        prepared_password = self._prepare_password(plain_password)
+        return self.pwd_context.verify(prepared_password, hashed_password)
 
     def get_password_hash(self, password: str) -> str:
-        return self.pwd_context.hash(password)
+        """Хеширование пароля"""
+        prepared_password = self._prepare_password(password)
+        return self.pwd_context.hash(prepared_password)
 
     def hash_password(self, password: str) -> str:
+        """Хеширование пароля (алиас для get_password_hash)"""
         return self.get_password_hash(password)
