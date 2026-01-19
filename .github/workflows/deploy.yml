@@ -1,0 +1,133 @@
+name: Deploy to VPS
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Build and Push Docker images to GHCR"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            mkdir -p ~/be-auth
+            cd ~/be-auth
+            
+            POSTGRES_PORT="${{ secrets.POSTGRES_PORT || '5434' }}"
+            
+            cat > docker-compose.yml << EOF
+            services:
+              postgres:
+                image: postgres:16-alpine
+                container_name: be-auth-postgres
+                restart: unless-stopped
+                environment:
+                  POSTGRES_DB: ${{ secrets.POSTGRES_DB || 'auth' }}
+                  POSTGRES_USER: ${{ secrets.POSTGRES_USER || 'auth_user' }}
+                  POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+                volumes:
+                  - postgres_data:/var/lib/postgresql/data
+                ports:
+                  - "${POSTGRES_PORT}:5432"
+                networks:
+                  - be-auth-network
+                healthcheck:
+                  test: ["CMD-SHELL", "pg_isready -U ${{ secrets.POSTGRES_USER || 'auth_user' }}"]
+                  interval: 10s
+                  timeout: 5s
+                  retries: 5
+              redis:
+                image: redis:7-alpine
+                container_name: be-auth-redis
+                restart: unless-stopped
+                networks:
+                  - be-auth-network
+                healthcheck:
+                  test: ["CMD", "redis-cli", "ping"]
+                  interval: 10s
+                  timeout: 5s
+                  retries: 5
+              rabbitmq:
+                image: rabbitmq:3-management-alpine
+                container_name: be-auth-rabbitmq
+                restart: unless-stopped
+                environment:
+                  RABBITMQ_DEFAULT_USER: ${{ secrets.RABBITMQ_USER || 'guest' }}
+                  RABBITMQ_DEFAULT_PASS: ${{ secrets.RABBITMQ_PASSWORD || 'guest' }}
+                ports:
+                  - "15672:15672"
+                  - "5672:5672"
+                networks:
+                  - be-auth-network
+                healthcheck:
+                  test: ["CMD", "rabbitmq-diagnostics", "ping"]
+                  interval: 10s
+                  timeout: 5s
+                  retries: 5
+              be-auth:
+                image: ghcr.io/${{ github.repository_owner }}/be-auth:latest
+                container_name: be-auth
+                restart: unless-stopped
+                depends_on:
+                  postgres:
+                    condition: service_healthy
+                  redis:
+                    condition: service_healthy
+                  rabbitmq:
+                    condition: service_healthy
+                ports:
+                  - "8000:8000"
+                environment:
+                  - DATABASE_URL=${{ secrets.DATABASE_URL }}
+                  - ALEMBIC_DATABASE_URL=${{ secrets.ALEMBIC_DATABASE_URL || '' }}
+                  - REDIS_URL=${{ secrets.REDIS_URL || 'redis://redis:6379/0' }}
+                  - RABBITMQ_USER=${{ secrets.RABBITMQ_USER || 'guest' }}
+                  - RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD || 'guest' }}
+                  - RABBITMQ_URL=amqp://${{ secrets.RABBITMQ_USER || 'guest' }}:${{ secrets.RABBITMQ_PASSWORD || 'guest' }}@rabbitmq:5672/
+                  - HTTP_PORT=8000
+                  - ENV=prod
+                  - LOG_LEVEL=${{ secrets.LOG_LEVEL || 'INFO' }}
+                  - CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS || '*' }}
+                networks:
+                  - be-auth-network
+            networks:
+              be-auth-network:
+                driver: bridge
+            volumes:
+              postgres_data:
+            EOF
+            
+            cat > .env << EOF
+            POSTGRES_DB=${{ secrets.POSTGRES_DB || 'auth' }}
+            POSTGRES_USER=${{ secrets.POSTGRES_USER || 'auth_user' }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            ALEMBIC_DATABASE_URL=${{ secrets.ALEMBIC_DATABASE_URL || '' }}
+            REDIS_URL=${{ secrets.REDIS_URL || 'redis://redis:6379/0' }}
+            RABBITMQ_USER=${{ secrets.RABBITMQ_USER || 'guest' }}
+            RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD || 'guest' }}
+            RABBITMQ_URL=amqp://${{ secrets.RABBITMQ_USER || 'guest' }}:${{ secrets.RABBITMQ_PASSWORD || 'guest' }}@rabbitmq:5672/
+            HTTP_PORT=8000
+            ENV=prod
+            LOG_LEVEL=${{ secrets.LOG_LEVEL || 'INFO' }}
+            CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS || '*' }}
+            EOF
+            
+            if [ -n "${{ secrets.GHCR_TOKEN }}" ]; then
+              echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            fi
+            docker compose pull
+            docker compose run --rm be-auth uv run alembic upgrade head || echo "Migration failed or not needed"
+            docker compose up -d
+            docker image prune -f
