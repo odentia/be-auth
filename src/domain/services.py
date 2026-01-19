@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from src.core.config import Settings
 from src.domain.entities import User, TokenPair, AuthResult
+
+if TYPE_CHECKING:
+    import redis
 
 
 class PasswordService:

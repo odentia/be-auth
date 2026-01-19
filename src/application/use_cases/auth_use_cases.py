@@ -7,7 +7,6 @@ from src.application.dto import (
     LoginRequest, AuthResponse, UserResponse, TokenResponse,
     UserLoggedInEvent, TokenRefreshedEvent
 )
-from src.domain.entities import User
 from src.domain.repositories import UserRepository
 from src.domain.services import AuthService, JWTService
 from src.infrastructure.mq.publisher import EventPublisher

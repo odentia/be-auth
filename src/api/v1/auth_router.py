@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Response, Depends, Request
 
 from src.application.dto import (
-    LoginRequest, AuthResponse, TokenResponse, RefreshTokenRequest, UserResponse, RegisterRequest
+    LoginRequest, AuthResponse, TokenResponse, UserResponse, RegisterRequest
 )
 from src.application.use_cases.auth_use_cases import (
     LoginUseCase, RefreshTokenUseCase
@@ -59,7 +59,7 @@ async def refresh_token(
         try:
             body = await request.json()
             refresh_token = body.get("refresh_token")
-        except:
+        except Exception:
             pass
     
     if not refresh_token:
@@ -167,7 +167,7 @@ async def get_current_user(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token verification failed"
@@ -192,7 +192,7 @@ async def logout(
             if payload:
                 user_id = payload.get("sub")
                 user_email = payload.get("email")
-    except:
+    except Exception:
         pass
 
     # Публикуем событие выхода пользователя
