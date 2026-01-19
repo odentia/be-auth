@@ -19,6 +19,7 @@ dependencies = [
   "redis>=5.0.0",
   "email-validator>=2.3.0",
   "aiosqlite>=0.21.0",
+  "aio-pika>=9.4.0",
 ]
 
 [tool.alembic]

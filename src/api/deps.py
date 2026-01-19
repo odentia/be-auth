@@ -14,6 +14,7 @@ from src.application.uow import UnitOfWork  # interface / Protocol
 from src.infrastructure.uow_sqlalchemy import SQLAlchemyUoW  # impl
 from src.domain.services import PasswordService, JWTService, AuthService
 from src.infrastructure.persistence.repositories import SQLUserRepository
+from src.infrastructure.mq.publisher import EventPublisher
 
 log = get_logger(__name__)
 
@@ -106,6 +107,12 @@ def get_auth_services(
 def get_user_repo(session: SessionDep) -> SQLUserRepository:
     """Получить репозиторий пользователей"""
     return SQLUserRepository(session)
+
+
+def get_event_publisher(request: Request) -> EventPublisher | None:
+    """Получить EventPublisher из app state"""
+    publisher: EventPublisher | None = getattr(request.app.state, "event_publisher", None)
+    return publisher
 
 
 async def require_authenticated_user(

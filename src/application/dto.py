@@ -57,3 +57,38 @@ class ErrorResponse(BaseModel):
 class LogautResponse(BaseModel):
     success: bool = True
     message: str = "Successful logout"
+
+
+# --- Event DTOs ---
+
+class UserCreatedEvent(BaseModel):
+    """Событие создания пользователя"""
+    event_type: str = "user_created"
+    user_id: str
+    email: str
+    name: str
+    created_at: datetime
+
+
+class UserLoggedInEvent(BaseModel):
+    """Событие входа пользователя"""
+    event_type: str = "user_logged_in"
+    user_id: str
+    email: str
+    timestamp: datetime
+
+
+class UserLoggedOutEvent(BaseModel):
+    """Событие выхода пользователя"""
+    event_type: str = "user_logged_out"
+    user_id: str
+    email: str
+    timestamp: datetime
+
+
+class TokenRefreshedEvent(BaseModel):
+    """Событие обновления токена"""
+    event_type: str = "token_refreshed"
+    user_id: str
+    email: str
+    timestamp: datetime

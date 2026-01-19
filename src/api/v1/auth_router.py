@@ -6,7 +6,7 @@ from src.application.dto import (
 from src.application.use_cases.auth_use_cases import (
     LoginUseCase, RefreshTokenUseCase
 )
-from src.api.deps import get_user_repo, get_auth_services, get_jwt_service
+from src.api.deps import get_user_repo, get_auth_services, get_jwt_service, get_event_publisher
 from src.application.use_cases.register_use_cases import RegisterUseCase
 
 # Создаем роутер для аутентификации
@@ -18,13 +18,15 @@ async def login(
     request: LoginRequest,
     response: Response,
     user_repo=Depends(get_user_repo),
-    auth_services=Depends(get_auth_services)
+    auth_services=Depends(get_auth_services),
+    event_publisher=Depends(get_event_publisher)
 ):
     """Вход в систему"""
     login_use_case = LoginUseCase(
         user_repo=user_repo,
         auth_service=auth_services["auth_service"],
-        jwt_service=auth_services["jwt_service"]
+        jwt_service=auth_services["jwt_service"],
+        event_publisher=event_publisher
     )
     
     result = await login_use_case.execute(request)
@@ -45,7 +47,8 @@ async def refresh_token(
     request: Request,
     response: Response,
     user_repo=Depends(get_user_repo),
-    auth_services=Depends(get_auth_services)
+    auth_services=Depends(get_auth_services),
+    event_publisher=Depends(get_event_publisher)
 ):
     """Обновление токенов"""
     # Пытаемся получить refresh токен из кук или из тела запроса
@@ -67,7 +70,8 @@ async def refresh_token(
     
     refresh_use_case = RefreshTokenUseCase(
         user_repo=user_repo,
-        jwt_service=auth_services["jwt_service"]
+        jwt_service=auth_services["jwt_service"],
+        event_publisher=event_publisher
     )
     
     result = await refresh_use_case.execute(refresh_token)
@@ -88,12 +92,14 @@ async def register(
     request: RegisterRequest,
     response: Response,
     user_repo=Depends(get_user_repo),
-    auth_services=Depends(get_auth_services)
+    auth_services=Depends(get_auth_services),
+    event_publisher=Depends(get_event_publisher)
 ):
     register_use_case = RegisterUseCase(
         user_repo=user_repo,
         auth_service=auth_services["auth_service"],
-        jwt_service=auth_services["jwt_service"]
+        jwt_service=auth_services["jwt_service"],
+        event_publisher=event_publisher
     )
 
     result = await register_use_case.execute(request)
@@ -173,17 +179,37 @@ async def logout(
     request: Request,
     response: Response,
     user_repo=Depends(get_user_repo),
-    jwt_service=Depends(get_jwt_service)
+    jwt_service=Depends(get_jwt_service),
+    event_publisher=Depends(get_event_publisher)
 ):
+    user_id = None
+    user_email = None
+    
     try:
         access_token = request.cookies.get("access_token")
         if access_token:
             payload = jwt_service.verify_access_token(access_token)
             if payload:
                 user_id = payload.get("sub")
-                print(f"User {user_id} is logging out")
+                user_email = payload.get("email")
     except:
         pass
+
+    # Публикуем событие выхода пользователя
+    if event_publisher and user_id:
+        try:
+            from src.application.dto import UserLoggedOutEvent
+            from datetime import datetime
+            event = UserLoggedOutEvent(
+                user_id=user_id,
+                email=user_email or "",
+                timestamp=datetime.utcnow()
+            )
+            await event_publisher.publish(event)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to publish user_logged_out event: {e}")
 
     _clear_auth_cookies(response)
 

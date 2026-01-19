@@ -49,6 +49,12 @@ class Settings(BaseSettings):
         description="Redis URL for session storage and caching",
     )
 
+    # --- RabbitMQ ---
+    rabbitmq_url: str = Field(
+        default="amqp://guest:guest@localhost:5672/",
+        description="RabbitMQ connection URL",
+    )
+
     # --- JWT ---
     jwt_secret_key: str = Field(
         default="your-secret-key-change-in-production",

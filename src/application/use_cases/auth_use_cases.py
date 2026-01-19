@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
-from src.application.dto import LoginRequest, AuthResponse, UserResponse, TokenResponse
+from src.application.dto import (
+    LoginRequest, AuthResponse, UserResponse, TokenResponse,
+    UserLoggedInEvent, TokenRefreshedEvent
+)
 from src.domain.entities import User
 from src.domain.repositories import UserRepository
 from src.domain.services import AuthService, JWTService
+from src.infrastructure.mq.publisher import EventPublisher
 
 
 class LoginUseCase:
@@ -15,11 +20,13 @@ class LoginUseCase:
         self,
         user_repo: UserRepository,
         auth_service: AuthService,
-        jwt_service: JWTService
+        jwt_service: JWTService,
+        event_publisher: Optional[EventPublisher] = None
     ):
         self.user_repo = user_repo
         self.auth_service = auth_service
         self.jwt_service = jwt_service
+        self.event_publisher = event_publisher
     
     async def execute(self, request: LoginRequest) -> Optional[AuthResponse]:
         """Выполнить вход в систему"""
@@ -34,6 +41,21 @@ class LoginUseCase:
         
         # Создаем токены
         auth_result = self.auth_service.create_auth_result(user)
+        
+        # Публикуем событие входа пользователя
+        if self.event_publisher:
+            try:
+                event = UserLoggedInEvent(
+                    user_id=user.id,
+                    email=user.email,
+                    timestamp=datetime.utcnow()
+                )
+                await self.event_publisher.publish(event)
+            except Exception as e:
+                # Логируем ошибку, но не прерываем процесс входа
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to publish user_logged_in event: {e}")
         
         return AuthResponse(
             user=UserResponse(
@@ -59,10 +81,12 @@ class RefreshTokenUseCase:
     def __init__(
         self,
         user_repo: UserRepository,
-        jwt_service: JWTService
+        jwt_service: JWTService,
+        event_publisher: Optional[EventPublisher] = None
     ):
         self.user_repo = user_repo
         self.jwt_service = jwt_service
+        self.event_publisher = event_publisher
     
     async def execute(self, refresh_token: str) -> Optional[AuthResponse]:
         """Обновить токены"""
@@ -82,6 +106,21 @@ class RefreshTokenUseCase:
         
         # Создаем новые токены
         tokens = self.jwt_service.create_token_pair(user)
+        
+        # Публикуем событие обновления токена
+        if self.event_publisher:
+            try:
+                event = TokenRefreshedEvent(
+                    user_id=user.id,
+                    email=user.email,
+                    timestamp=datetime.utcnow()
+                )
+                await self.event_publisher.publish(event)
+            except Exception as e:
+                # Логируем ошибку, но не прерываем процесс обновления токена
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to publish token_refreshed event: {e}")
         
         return AuthResponse(
             user=UserResponse(
