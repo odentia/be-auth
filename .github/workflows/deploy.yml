@@ -45,15 +45,9 @@ jobs:
             
             # Если сеть существует, подключаем be-auth к ней
             if docker network inspect "$RABBITMQ_NETWORK" >/dev/null 2>&1; then
-              RABBITMQ_NETWORK_CONFIG="    networks:
-      - be-auth-network
-      - $RABBITMQ_NETWORK"
-              RABBITMQ_NETWORK_EXTERNAL="      $RABBITMQ_NETWORK:
-        external: true"
+              USE_EXTERNAL_RABBITMQ_NETWORK=1
             else
-              RABBITMQ_NETWORK_CONFIG="    networks:
-      - be-auth-network"
-              RABBITMQ_NETWORK_EXTERNAL=""
+              USE_EXTERNAL_RABBITMQ_NETWORK=0
             fi
             
             cat > docker-compose.yml << EOF
@@ -112,11 +106,11 @@ jobs:
                   - ENV=prod
                   - LOG_LEVEL=${{ secrets.LOG_LEVEL || 'INFO' }}
                   - CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS || '*' }}
-${RABBITMQ_NETWORK_CONFIG}
+                networks:
+                  - be-auth-network
             networks:
               be-auth-network:
                 driver: bridge
-            ${RABBITMQ_NETWORK_EXTERNAL}
             volumes:
               postgres_data:
             EOF
@@ -153,7 +147,7 @@ ${RABBITMQ_NETWORK_CONFIG}
             docker compose up -d
             
             # Подключаем be-auth к сети существующего RabbitMQ после запуска
-            if docker network inspect "$RABBITMQ_NETWORK" >/dev/null 2>&1; then
+            if [ "$USE_EXTERNAL_RABBITMQ_NETWORK" = "1" ]; then
               docker network connect "$RABBITMQ_NETWORK" be-auth 2>/dev/null || echo "Контейнер be-auth уже подключен к сети $RABBITMQ_NETWORK"
             fi
             
