@@ -31,7 +31,7 @@ class PasswordService:
 class JWTService:
     """Сервис для работы с JWT токенами"""
     
-    def __init__(self, settings: Settings, redis_client: Optional[redis.Redis] = None):
+    def __init__(self, settings: Settings, redis_client: Optional["redis.Redis"] = None):
         self.secret_key = settings.jwt_secret_key
         self.algorithm = settings.jwt_algorithm
         self.access_token_expire_minutes = settings.jwt_access_token_expire_minutes
