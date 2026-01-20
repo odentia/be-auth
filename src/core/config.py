@@ -100,7 +100,9 @@ def load_settings() -> Settings:
         )
         return merged
 
-    base.cors_allow_origins = _parse_cors_origins(os.getenv("CORS_ALLOW_ORIGINS"))
+    # Парсим CORS origins из переменной окружения или используем значение по умолчанию
+    cors_raw = os.getenv("CORS_ALLOW_ORIGINS") or base.cors_allow_origins
+    base.cors_allow_origins = _parse_cors_origins(cors_raw)
     return base
 
 
